@@ -1,0 +1,11 @@
+    For this project I want a consice way of writing interactive HTML pages.  
+
+    I would like to write html in haskell using succinct "do" notation, 
+as well as a template haskell -> javascript compiler for interacting with these web pages,
+and putting java script inside the html in much the same way that other frameworks compile
+to javascript. This way, we not only get better syntax, but we get server interaction for 
+free, rather than having to include seperate tags like php or jsp.  
+    
+    I'm not very experienced with designing webframeworks, so I expect this won't scale very
+well, but further down the line, I am sure somebody can fix that by messing with the server 
+and template haskell.

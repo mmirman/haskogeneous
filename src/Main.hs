@@ -1,3 +1,6 @@
+{-# LANGUAGE 
+ TemplateHaskell 
+ #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      : None
@@ -31,8 +34,12 @@ loop sock = do
 
 page content = "HTTP/1.0 200 OK\r\nContent-Length: "++show (length content)++"\r\n\r\n"++content++"\r\n"
 
+
+alert = undefined
+
 msg = makeHtml $                                                                   
-  html $ do                                                                        
-    body $ do                                                                      
-      h1 "AHA better syntax bitches!"                                              
+  html $ do
+    body $ do                                              
+      h1 "AHA better syntax bitches!"                              
       p "HEHE and paragraphs!"
+      script [| (\(x,yp) -> \y -> y (x * yp)) (4,5) alert |]

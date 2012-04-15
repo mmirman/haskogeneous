@@ -35,10 +35,12 @@ module HGene.HtmlWriter ( HtmlWriter
                         , body
                         , html
                         , link
+                        , script
                         ) where 
 
 import Control.Monad (void)
 import Control.Monad.Writer (Writer, tell, execWriter)
+import HGene.JSCompiler.HaskellToJavaScript
 
 -- --------------------------------------------------------------------------
 -- Type definition for the HtmlWriter
@@ -69,3 +71,5 @@ p = tag "p"
 body = tag "body"
 html = tag "html"
 link lk = param_tag "a" ("href="++show lk)
+
+script h = tag "script" (hsToJs h)

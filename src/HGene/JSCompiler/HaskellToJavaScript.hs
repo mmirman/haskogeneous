@@ -1,5 +1,6 @@
 {-# LANGUAGE 
- TemplateHaskell 
+ TemplateHaskell,
+ StandaloneDeriving
  #-}
 -----------------------------------------------------------------------------
 -- |
@@ -14,6 +15,8 @@
 
 module HGene.JSCompiler.HaskellToJavaScript (hsToJs) where
 
+import HGene.JSCompiler.JSBase
+import Debug.Trace
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Syntax.Internals
@@ -22,48 +25,77 @@ import System.IO.Unsafe
 {-# NOINLINE getQ #-}
 getQ = unsafePerformIO . runQ
 
+jsFlip = toJS $ getQ [| (\f x y -> f y x) |]
 
+-- Mangling with "VALUE" issues
+lazyValue str = "function (){\n\
+                \  var used  = 0;\n\
+                \  var value = 0;\n\
+                \  return function(){\n\ 
+                \     if (!used) {\n\
+                \        value = "++str++";\n\
+                \        used = 1;\n\
+                \     }\n\
+                \     return value;\n\
+                \  };\n\
+                \}()"
 
-fromExpToJS (AppE expA expB) = (fromExpToJS expA) ++ " (" ++ fromExpToJS expB ++ ")"
-fromExpToJS (VarE exp) = fromNameToJS exp
-fromExpToJS (LamE [var] exp) = "function("++ fromPatToJS var ++ "){ return " ++ fromExpToJS exp ++ " }" 
-fromExpToJS (LamE [] exp) = "function(){ return " ++ fromExpToJS exp ++ " }" 
-fromExpToJS (LamE (var:l) exp) = "function("++ fromPatToJS var ++ "){ return " ++ fromExpToJS (LamE l exp) ++ " }" 
-fromExpToJS (LitE lit) = fromLitToJS lit
-fromExpToJS (InfixE (Just exp0) (VarE a@(Name (OccName "*") _)) (Just exp1)) = 
-  "((" ++ fromExpToJS exp0 ++ ") " ++ fromNameToJS a ++ " (" ++ fromExpToJS exp1 ++ "))"
-fromExpToJS (InfixE exp0 expF exp1) = case exp0 of
-  Just exp0 -> case exp1 of 
-    Just exp1 -> fromExpToJS (AppE (AppE expF exp0) exp1)
-fromExpToJS (TupE exps) = fromTupToJS exps
-  where fromTupToJS exps = case exps of  
-          [] -> ""
-          [a] -> fromExpToJS a
-          a:l -> fromExpToJS a ++", " ++ fromTupToJS l
-fromExpToJS exp = error (show exp)
+toJS_RHS = lazyValue . toJS
 
-fromLitToJS (CharL x) = show $ show x
-fromLitToJS (StringL x) = show x
-fromLitToJS (IntegerL x) = show x
-fromLitToJS (RationalL x) = show x
-fromLitToJS (IntPrimL x) = show x
-fromLitToJS (WordPrimL x) = show x
-fromLitToJS (FloatPrimL x) = show x
-fromLitToJS (DoublePrimL x) = show x
-fromLitToJS (StringPrimL x) = show x
+class Convertable a where
+  toJS :: a -> String
 
-fromNameToJS (Name (OccName a) _) = a
+instance Convertable Exp where
+  toJS (AppE expA expB) = (toJS expA) ++ " (" ++ toJS_RHS expB ++ ")"
+  toJS (VarE exp) = toJS exp
+  toJS (LamE [] exp) = "function(){ return " ++ toJS exp ++ " }" 
+  toJS (LamE [var] exp) = "function("++ toJS var ++ "){ return " ++ toJS exp ++ " }" 
+  toJS (LamE (var:l) exp) = "function("++ toJS var ++ "){ return " ++ toJS (LamE l exp) ++ " }" 
+  toJS (LitE lit) = toJS lit
+  toJS (InfixE (Just exp0) (VarE a@(Name (OccName "*") _)) (Just exp1)) = 
+    "((" ++ toJS exp0 ++ ") " ++ toJS a ++ " (" ++ toJS exp1 ++ "))"
+  toJS (InfixE exp0 expF exp1) = case exp0 of
+    Just exp0 -> case exp1 of 
+      Just exp1 -> toJS (AppE (AppE expF exp0) exp1)
+      Nothing -> toJS (AppE expF exp0)
+    Nothing -> case exp1 of 
+      Just exp1 -> "(" ++ jsFlip ++ " (" ++ toJS expF ++ "))("++toJS_RHS exp1 ++")"
+  toJS (TupE exps) = fromTupToJS exps
+    where fromTupToJS exps = case exps of  
+            [] -> ""
+            [a] -> toJS a
+            a:l -> toJS a ++", " ++ fromTupToJS l
+  toJS exp = error (show exp)
 
-fromPatToJS (VarP a) = fromNameToJS a
-fromPatToJS (TupP tp) = case tp of 
-  [] -> ""
-  [a] -> fromPatToJS a
-  a:l -> fromPatToJS a++", "++fromPatToJS (TupP l)
+instance Convertable Lit where
+  toJS (CharL x) = show $ show x
+  toJS (StringL x) = show x
+  toJS (IntegerL x) = show x
+  toJS (RationalL x) = show x
+  toJS (IntPrimL x) = show x
+  toJS (WordPrimL x) = show x
+  toJS (FloatPrimL x) = show x
+  toJS (DoublePrimL x) = show x
+  toJS (StringPrimL x) = show x
 
-hsToJs = (\x -> "var final = " ++ x ++ ";\n") . fromExpToJS . getQ
-alert = undefined
+deriving instance Show NameFlavour
+deriving instance Show NameSpace
+deriving instance Show PkgName
+deriving instance Show ModName
 
-main = do
-  putStrLn $ hsToJs [| (\(x,y') -> \y -> y (x * y')) (4,5) alert |]
-
+instance Convertable Name where
+  toJS (Name (OccName a) (NameG _ _ (ModName "HGene.JSCompiler.JSBase"))) = a
+  toJS arg = (show arg)++"()"
   
+instance Convertable Pat where
+  toJS (VarP a) = show a
+  toJS (TupP tp) = case tp of 
+    [] -> ""
+    [a] -> toJS a
+    a:l -> toJS a++", "++toJS (TupP l)
+
+-- Mangling with "FINAL" issues
+hsToJs :: Q Exp -> [Char]
+hsToJs = (\x -> "var final = " ++ x ++ ";\n") . toJS . getQ
+
+test = hsToJs [| (\x -> x) (alert 5) |]

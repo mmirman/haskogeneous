@@ -1,7 +1,8 @@
 {-# LANGUAGE 
  FlexibleInstances, 
  TypeSynonymInstances, 
- NoMonomorphismRestriction
+ NoMonomorphismRestriction,
+ TemplateHaskell
  #-}
 
 -----------------------------------------------------------------------------
@@ -38,6 +39,8 @@ module HGene.HtmlWriter ( HtmlWriter
                         , script
                         ) where 
 
+import Unsafe.Coerce
+import Language.Haskell.TH
 import Control.Monad (void)
 import Control.Monad.Writer (Writer, tell, execWriter)
 import HGene.JSCompiler.HaskellToJavaScript
@@ -72,4 +75,4 @@ body = tag "body"
 html = tag "html"
 link lk = param_tag "a" ("href="++show lk)
 
-script h = tag "script" (hsToJs h)
+script = tag "script"

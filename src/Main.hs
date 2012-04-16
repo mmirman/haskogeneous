@@ -1,5 +1,6 @@
 {-# LANGUAGE 
- TemplateHaskell 
+ TemplateHaskell,
+ CPP
  #-}
 -----------------------------------------------------------------------------
 -- |
@@ -13,19 +14,21 @@
 -- Just a test class for the main library.
 module Main where
 import HGene.JSCompiler.HaskellToJavaScript
-import HGene.JSCompiler.JSBase 
+import HGene.JSCompiler.JSBase as JSBase
 import HGene.HtmlWriter
 import Network
 import Control.Concurrent
 import System.IO
 import System.Posix.Signals
 
+#define _script_(a) script $(hsToJs [| (a) |])
+
 handler sock = do
   sClose sock
   putStrLn "Ending Program"
   
 main = withSocketsDo $ do
-  socket <- listenOn $ PortNumber 1337
+  socket <- listenOn $ PortNumber 1338
   installHandler sigINT (Catch $ handler socket) Nothing
   sequence_ $ repeat $ do
     (h,_,_) <- accept socket
@@ -41,6 +44,4 @@ msg = makeHtml $
     body $ do                             
       h1 "AHA better syntax bitches!"                              
       p "HEHE and paragraphs!"
-      script $(hsToJs [| (\x -> x) (alert "hey") |])
-      
---      script [| (\(x,yp) y -> y (x * yp)) (4,5) alert |]
+      _script_( (\x y z -> z (x * y)) 3 4 JSBase.alert )

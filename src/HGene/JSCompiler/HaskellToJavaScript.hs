@@ -24,22 +24,29 @@ import System.IO.Unsafe
 
 jsFlip = hsToJsStr [| (\f x y -> f y x) |]
 
+getNewName str = do
+  n <- newName str
+  return $ show n ++ "_v"
+  
 -- Mangling with "VALUE" issues
-lazyValue str = "function (){\n\
-                \  var used  = 0;\n\
-                \  var value = 0;\n\
-                \  return function(){\n\ 
-                \     if (!used) {\n\
-                \        value = "++str++";\n\
-                \        used = 1;\n\
-                \     }\n\
-                \     return value;\n\
-                \  };\n\
-                \}()"
+lazyValue str = do
+  used <- getNewName "used"
+  value <- getNewName "value"
+  return $ "function (){\n\
+           \  var "++used++"  = 0;\n\
+           \  var "++value++" = 0;\n\
+           \  return function(){\n\ 
+           \     if (!"++used++") {\n\
+           \        "++value++" = ("++str++");\n\
+           \        "++used++" = 1;\n\
+           \     }\n\
+           \     return "++value++";\n\
+           \  };\n\
+           \}()"
 
 toJS_RHS e = do 
  a <- toJS e
- return $ lazyValue a
+ lazyValue a
 
 class Convertable a where
   toJS :: a -> Q String
@@ -62,11 +69,10 @@ instance Convertable Exp where
     e <- toJS $ LamE l exp
     return $ "function("++ v ++ "){ return " ++ e ++ " }" 
   toJS (LitE lit) = toJS lit
-  toJS (InfixE (Just exp0) (VarE a@(Name (OccName "*") _)) (Just exp1)) = do
+  toJS (InfixE (Just exp0) (VarE (Name (OccName "*") _)) (Just exp1)) = do
     e0 <- toJS exp0
-    va <- toJS a
     e1 <- toJS exp1
-    return $ "((" ++ e0 ++ ") " ++ va ++ " (" ++ e1 ++ "))"
+    return $ "((" ++ e0 ++ ") * (" ++ e1 ++ "))"
   toJS (InfixE exp0 expF exp1) = case exp0 of
     Just exp0 -> case exp1 of 
       Just exp1 -> toJS (AppE (AppE expF exp0) exp1)
@@ -108,12 +114,13 @@ deriving instance Show ModName
 instance Convertable Name where
   toJS n@(Name (OccName a) (NameG _ _ (ModName "HGene.JSCompiler.JSBase"))) = do
     VarI _ tp _ _ <- qReify n
-    let strictify i (ForallT _ _ t) f = strictify i t f
-        strictify i (AppT (AppT ArrowT _) t) f = 
-          "function("++i'++"){"++ strictify (i+1) t (f++"("++i'++"())")++"}"
-          where i' = "arg"++show i
-        strictify _ _ f = f
-    return $ strictify 0 tp a 
+    let strictify (ForallT _ _ t) f = strictify t f
+        strictify (AppT (AppT ArrowT _) t) f = do
+          i <- getNewName "arg"
+          s <- strictify t (f++"("++i++"())")
+          return $ "function("++i++"){"++s++"}"
+        strictify _ f = return f
+    strictify tp a 
   toJS arg = return $ (show arg)++"()"
   
 instance Convertable Pat where

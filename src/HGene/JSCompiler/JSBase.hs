@@ -13,7 +13,8 @@
 -- 
 -- Some tools for writing html in a pretty format in haskell.
 
-module HGene.JSCompiler.JSBase where
+module HGene.JSCompiler.JSBase ( alert ) where
+
 
 alert :: String -> IO ()
 alert = undefined

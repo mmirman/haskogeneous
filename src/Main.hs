@@ -44,4 +44,5 @@ msg = makeHtml $
     body $ do                             
       h1 "AHA better syntax bitches!"                              
       p "HEHE and paragraphs!"
+      p "Hello Amanda!"
       _script_( (\x y z -> z (x * y)) 3 4 JSBase.alert )

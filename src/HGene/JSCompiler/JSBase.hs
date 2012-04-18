@@ -16,5 +16,5 @@
 module HGene.JSCompiler.JSBase ( alert ) where
 
 
-alert :: String -> IO ()
+alert :: a -> IO ()
 alert = undefined

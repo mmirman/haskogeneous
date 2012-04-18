@@ -40,11 +40,14 @@ module HGene.HtmlWriter ( HtmlWriter
                         ) where 
 
 import Unsafe.Coerce
+import System.IO.Unsafe (unsafePerformIO)
 import Language.Haskell.TH
 import Control.Monad (void)
 import Control.Monad.Writer (Writer, tell, execWriter)
 import HGene.JSCompiler.HaskellToJavaScript
 
+
+                                                
 -- --------------------------------------------------------------------------
 -- Type definition for the HtmlWriter
 type HtmlWriter = Writer String
@@ -75,4 +78,4 @@ body = tag "body"
 html = tag "html"
 link lk = param_tag "a" ("href="++show lk)
 
-script = tag "script"
+script = appE [| tag "script" |] . hsToJs

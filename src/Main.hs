@@ -1,7 +1,7 @@
 {-# LANGUAGE 
- TemplateHaskell,
- CPP
+ TemplateHaskell
  #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      : None
@@ -13,6 +13,7 @@
 -- 
 -- Just a test class for the main library.
 module Main where
+
 import HGene.JSCompiler.HaskellToJavaScript
 import HGene.JSCompiler.JSBase as JSBase
 import HGene.HtmlWriter
@@ -20,8 +21,6 @@ import Network
 import Control.Concurrent
 import System.IO
 import System.Posix.Signals
-
-#define _script_(a) script $(hsToJs [| (a) |])
 
 handler sock = do
   sClose sock
@@ -39,9 +38,10 @@ main = withSocketsDo $ do
 
 page content = "HTTP/1.0 200 OK\r\nContent-Length: "++show (length content)++"\r\n\r\n"++content++"\r\n"
 
-msg = makeHtml $                                                                   
+msg = makeHtml $                           
   html $ do
-    body $ do                             
-      h1 "AHA better syntax bitches!"                              
+    body $ do
+      h1 "AHA better syntax bitches!"
       p "HEHE and paragraphs!"
-      _script_( (\x y z -> z (x * y)) 3 4 JSBase.alert )
+      $(script [| (\x y z -> z (x * y)) 3 4 JSBase.alert 
+                |])

@@ -91,7 +91,20 @@ instance Convertable Exp where
               a' <- toJS a 
               l' <- fromTupToJS l
               return $ a' ++", " ++ l'
+  toJS (DoE stmts) = do 
+      eid <- [| \a -> a |]
+      noBind <- [| (>>) |]
+      bind <- [| (>>=) |]
+      let convertDo st = case st of
+            BindS v e -> AppE (AppE bind e) . LamE [v]
+            NoBindS e -> AppE (AppE noBind e)
+            LetS decs -> LetE decs
+      toJS $ foldr (.) id (map convertDo stmts) eid
+      
   toJS exp = error (show exp)
+  
+instance Convertable Stmt where
+  
 
 instance Convertable Lit where
   toJS (CharL x) = return $ show $ show x
@@ -143,5 +156,5 @@ hsToJsStr a = do
 hsToJs h = do
   h' <- hsToJsStr h
   return $ LitE $ StringL h'
-
+  
 test = hsToJs [| (\x -> x) (alert 5) |]

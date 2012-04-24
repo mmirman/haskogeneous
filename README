@@ -9,3 +9,5 @@ free, rather than having to include seperate tags like php or jsp.
     I'm not very experienced with designing webframeworks, so I expect this won't scale very
 well, but further down the line, I am sure somebody can fix that by messing with the server 
 and template haskell.
+
+    Weee I contributed!

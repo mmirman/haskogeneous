@@ -29,7 +29,7 @@ module HGene.HtmlWriter ( HtmlWriter
                         , param_tag
                         , tag
                           
-                          -- ** some example tags
+                          -- ** tags
                           
                         , h1  
                         , p
@@ -37,6 +37,7 @@ module HGene.HtmlWriter ( HtmlWriter
                         , html
                         , link
                         , script
+			, bold
                         ) where 
 
 import Unsafe.Coerce
@@ -51,10 +52,10 @@ void a = a>> return ()
 -- Type definition for the HtmlWriter
 type HtmlWriter = Writer String
 
--- | 'writeString s' writes a string to the html writer monad
+-- | @'writeString' s@ writes a string to the html writer monad
 writeString = tell
 
--- | 'makeHtml s' currently just converts this into a string
+-- | @'makeHtml' s@ currently just converts this into a string
 makeHtml = execWriter
 
 -- --------------------------------------------------------------------------
@@ -210,6 +211,7 @@ underline           =  tag "U"
 variable            =  tag "VAR"
 
 link lk = param_tag "a" ("href="++show lk)
+bold = tag "bold"
 
 script = appE [| tag "script" |] . hsToJs
 

@@ -81,82 +81,15 @@ param_tag tg param msg = do
   writeString $ "</"++tg++">\n"
 
 tag tg = param_tag tg ""
-address             :: Html -> Html
-anchor              :: Html -> Html
-applet              :: Html -> Html
-area                ::         Html
-basefont            ::         Html
-big                 :: Html -> Html
-blockquote          :: Html -> Html
-body                :: Html -> Html
-bold                :: Html -> Html
-br                  ::         Html
-caption             :: Html -> Html
-center              :: Html -> Html
-cite                :: Html -> Html
-ddef                :: Html -> Html
-define              :: Html -> Html
-dlist               :: Html -> Html
-dterm               :: Html -> Html
-emphasize           :: Html -> Html
-fieldset            :: Html -> Html
-font                :: Html -> Html
-form                :: Html -> Html
-frame               :: Html -> Html
-frameset            :: Html -> Html
-h1                  :: Html -> Html
-h2                  :: Html -> Html
-h3                  :: Html -> Html
-h4                  :: Html -> Html
-h5                  :: Html -> Html
-h6                  :: Html -> Html
-header              :: Html -> Html
-hr                  ::         Html
-image               ::         Html
-input               ::         Html
-italics             :: Html -> Html
-keyboard            :: Html -> Html
-legend              :: Html -> Html
-li                  :: Html -> Html
-meta                ::         Html
-noframes            :: Html -> Html
-olist               :: Html -> Html
-option              :: Html -> Html
-paragraph           :: Html -> Html
-param               ::         Html
-pre                 :: Html -> Html
-sample              :: Html -> Html
-select              :: Html -> Html
-small               :: Html -> Html
-strong              :: Html -> Html
-style               :: Html -> Html
-sub                 :: Html -> Html
-sup                 :: Html -> Html
-table               :: Html -> Html
-td                  :: Html -> Html
-textarea            :: Html -> Html
-th                  :: Html -> Html
-thebase             ::         Html
-thecode             :: Html -> Html
-thediv              :: Html -> Html
-thehtml             :: Html -> Html
-thelink             :: Html -> Html
-themap              :: Html -> Html
-thespan             :: Html -> Html
-thetitle            :: Html -> Html
-tr                  :: Html -> Html
-tt                  :: Html -> Html
-ulist               :: Html -> Html
-underline           :: Html -> Html
-variable            :: Html -> Html
 
+-- HTML tags
 address             =  tag "ADDRESS"
 anchor              =  tag "A"
 applet              =  tag "APPLET"
 big                 =  tag "BIG"
 blockquote          =  tag "BLOCKQUOTE"
 body                =  tag "BODY"
-bold                =  tag "B"
+bold                = tag "BOLD"
 caption             =  tag "CAPTION"
 center              =  tag "CENTER"
 cite                =  tag "CITE"
@@ -177,6 +110,13 @@ h4                  =  tag "H4"
 h5                  =  tag "H5"
 h6                  =  tag "H6"
 header              =  tag "HEAD"
+html                =  tag "HTML"
+h_code              =  tag "CODE"
+h_div               =  tag "DIV"
+h_link              =  tag "LINK"
+h_map               =  tag "MAP"
+h_span              =  tag "SPAN"
+h_title             =  tag "TITLE"
 italics             =  tag "I"
 keyboard            =  tag "KBD"
 legend              =  tag "LEGEND"
@@ -184,7 +124,7 @@ li                  =  tag "LI"
 noframes            =  tag "NOFRAMES"
 olist               =  tag "OL"
 option              =  tag "OPTION"
-paragraph           =  tag "P"
+p                   =  tag "P"
 pre                 =  tag "PRE"
 sample              =  tag "SAMP"
 select              =  tag "SELECT"
@@ -197,13 +137,6 @@ table               =  tag "TABLE"
 td                  =  tag "TD"
 textarea            =  tag "TEXTAREA"
 th                  =  tag "TH"
-thecode             =  tag "CODE"
-thediv              =  tag "DIV"
-thehtml             =  tag "HTML"
-thelink             =  tag "LINK"
-themap              =  tag "MAP"
-thespan             =  tag "SPAN"
-thetitle            =  tag "TITLE"
 tr                  =  tag "TR"
 tt                  =  tag "TT"
 ulist               =  tag "UL"
@@ -211,7 +144,5 @@ underline           =  tag "U"
 variable            =  tag "VAR"
 
 link lk = param_tag "a" ("href="++show lk)
-bold = tag "bold"
-
 script = appE [| tag "script" |] . hsToJs
 

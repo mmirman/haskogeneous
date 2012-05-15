@@ -1,10 +1,12 @@
 {-# LANGUAGE 
  FlexibleInstances, 
- TypeSynonymInstances, 
  NoMonomorphismRestriction,
  TemplateHaskell,
  GeneralizedNewtypeDeriving,
- FlexibleContexts
+ FlexibleContexts,
+ EmptyDataDecls,
+ MultiParamTypeClasses,
+ FunctionalDependencies
  #-}
 
 -----------------------------------------------------------------------------
@@ -31,10 +33,9 @@ void a = a >> return ()
 
 -- --------------------------------------------------------------------------
 -- Type definition for the HtmlWriter
-newtype HtmlWriter a = HtmlWriter {getHtml :: (Writer String a) }
+newtype HtmlWriter a = HtmlWriter { getHtml :: Writer String a}
                      deriving (Monad, MonadWriter String)
-                              
---instance MonadWriter String (HtmlWriter a) where
+
   
 
 -- | @'writeString' s@ writes a string to the html writer monad
@@ -43,11 +44,12 @@ writeString = tell
 -- | @'makeHtml' s@ currently just converts this into a string
 makeHtml = execWriter . getHtml . printThis
 
+data End
+data Par
 
+data Printable a b => Param a b = Param [HtmlAttr] a
 
-data (Param a) = Param [HtmlAttr] a
-
-data Elem a = Elem String a
+data Printable a b =>  Elem a b = Elem String a
 
 data HtmlAttr = Attr String String
 
@@ -57,42 +59,36 @@ instance Show HtmlAttr where
 -- --------------------------------------------------------------------------
 -- Printable allows us to use tag for either a monad or a string or whatever
 -- just makes syntax better, and ideally in the future, everything better.
-class Printable a where printThis :: a -> HtmlWriter ()
+class Printable a b | a -> b where printThis :: a -> HtmlWriter ()
 
-instance Printable [Char] where 
-  printThis = writeString 
+instance Printable [Char] End where
+  printThis = writeString
 
-instance Printable (HtmlWriter a) where 
+instance Printable (HtmlWriter a) End where 
   printThis = void
-    
-instance Printable (Param a) => Printable (Elem (Param a)) where
+
+instance Printable a Par => Printable (Elem a Par) End where
   printThis (Elem tg msg) = do  
     writeString $ "<"++tg++" "
     printThis msg
     writeString $ "</"++tg++">\n"
 
-printElem (Elem tg msg) = do  
+instance Printable a End => Printable (Elem a End) End where 
+  printThis (Elem tg msg) = do
     writeString $ "<"++tg++">\n"
     printThis msg
     writeString $ "</"++tg++">\n"
     
-instance Printable (Elem String) where printThis = printElem
-instance (Printable (Elem a)) => Printable (Elem (Elem a)) where printThis = printElem
-instance (Printable (HtmlWriter a)) => Printable (Elem (HtmlWriter a)) where printThis = printElem
-
-instance (Printable (Param a)) => Printable (Param (Param a)) where
+instance Printable a Par => Printable (Param a Par) Par where
   printThis (Param params msg) = do
     printThis $ " "++showMiddle params++" "
     printThis msg
     
-printParam (Param params msg) = do
-  printThis $ " "++showMiddle params++">\n"
-  printThis msg
-
-instance Printable (Param String) where printThis = printParam
-instance (Printable (HtmlWriter a)) => Printable (Param (HtmlWriter a)) where printThis = printParam
-instance (Printable (Elem a)) => Printable (Param (Elem a)) where printThis = printParam
-
+instance Printable a End => Printable (Param a End) Par where
+  printThis (Param params msg) = do
+    printThis $ " "++showMiddle params++">\n"
+    printThis msg  
+  
 showMiddle a = reverse $ tail $ reverse $ tail $ show a
 
 tag tg = printThis . Elem tg

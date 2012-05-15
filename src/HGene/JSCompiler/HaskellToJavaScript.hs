@@ -115,7 +115,7 @@ instance Convertable Lit where
   toJS (WordPrimL x) = return $ show x
   toJS (FloatPrimL x) = return $ show x
   toJS (DoublePrimL x) = return $ show x
-  toJS (StringPrimL x) = return $ show x
+--  toJS (StringPrimL x) = return $ show x
 
 deriving instance Show NameFlavour
 deriving instance Show NameSpace

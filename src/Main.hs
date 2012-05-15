@@ -40,8 +40,10 @@ page content = "HTTP/1.0 200 OK\r\nContent-Length: "++show (length content)++"\r
 
 msg = makeHtml $                           
   html $ do
-    body $ Param [href "http://www.hulu.com/", name "dogs"] $ do
+    body $ name "thisbody" $ do
       h1 "AHA better syntax bitches!"
-      p "HEHE and paragraphs!"
+      p $ name "dig" $ "HEHE and paragraphs!"
+      anchor $ name "dog" $ href "http://www.hulu.com/" $ "And links"
+
       $(script [| (\x y z -> z (x * y)) 3 4 JSBase.alert
                 |])

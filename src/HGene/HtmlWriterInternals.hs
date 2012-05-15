@@ -6,7 +6,8 @@
  FlexibleContexts,
  EmptyDataDecls,
  MultiParamTypeClasses,
- FunctionalDependencies
+ FunctionalDependencies,
+ DatatypeContexts
  #-}
 
 -----------------------------------------------------------------------------
@@ -69,7 +70,7 @@ instance Printable (HtmlWriter a) End where
 
 instance Printable a Par => Printable (Elem a Par) End where
   printThis (Elem tg msg) = do  
-    writeString $ "<"++tg++" "
+    writeString $ "<"++tg
     printThis msg
     writeString $ "</"++tg++">\n"
 
@@ -81,25 +82,25 @@ instance Printable a End => Printable (Elem a End) End where
     
 instance Printable a Par => Printable (Param a Par) Par where
   printThis (Param params msg) = do
-    printThis $ " "++showMiddle params++" "
+    printThis $ showMiddle params
     printThis msg
     
 instance Printable a End => Printable (Param a End) Par where
   printThis (Param params msg) = do
-    printThis $ " "++showMiddle params++">\n"
+    printThis $ showMiddle params++">\n"
     printThis msg  
   
-showMiddle a = reverse $ tail $ reverse $ tail $ show a
+showMiddle = concatMap (\x -> " "++show x)
 
 tag tg = printThis . Elem tg
 
 link lk params msg = anchor $ Param ([Attr "href" $ show lk]++params) msg
 
-href :: String -> HtmlAttr
-href ln = Attr "href" (show ln)
+href :: Printable a b => String -> a -> Param a b
+href ln = Param [Attr "href" (show ln)]
 
-name :: String -> HtmlAttr
-name ln = Attr "id" (show ln)
+name :: Printable a b => String -> a -> Param a b
+name ln = Param [Attr "id" (show ln)]
 
 script = appE [| tag "script" |] . hsToJs
 

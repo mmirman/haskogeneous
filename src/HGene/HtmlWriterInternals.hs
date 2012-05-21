@@ -6,11 +6,10 @@
  FlexibleContexts,
  EmptyDataDecls,
  MultiParamTypeClasses,
- FunctionalDependencies,
- DatatypeContexts
+ FunctionalDependencies
  #-}
 
------------------------------------------------------------------------------
+---------------------------------------------------------------------------
 -- |
 -- Module      : HGene.HtmlWriterInternals
 -- License     : http://www.gnu.org/copyleft/gpl.html
@@ -25,7 +24,8 @@
 module HGene.HtmlWriterInternals where
        
 import Language.Haskell.TH
-import Control.Monad.Writer (Writer, tell, execWriter)
+import Control.Monad.Trans
+import Control.Monad.Writer.Strict (WriterT, tell, execWriterT)
 import Control.Monad.Writer.Class (MonadWriter(..))
 import HGene.JSCompiler.HaskellToJavaScript
 
@@ -34,16 +34,16 @@ void a = a >> return ()
 
 -- --------------------------------------------------------------------------
 -- Type definition for the HtmlWriter
-newtype HtmlWriter a = HtmlWriter { getHtml :: Writer String a}
+newtype HtmlWriter a = HtmlWriter { getHtml :: WriterT String IO a}
                      deriving (Monad, MonadWriter String)
 
-  
+liftIO t = HtmlWriter $ lift t
 
 -- | @'writeString' s@ writes a string to the html writer monad
 writeString = tell
 
 -- | @'makeHtml' s@ currently just converts this into a string
-makeHtml = execWriter . getHtml . printThis
+makeHtml = execWriterT . getHtml . printThis
 
 data End
 data Par
@@ -165,6 +165,3 @@ tt                  =  tag "TT"
 ulist               =  tag "UL"
 underline           =  tag "U"
 variable            =  tag "VAR"
-
-
-

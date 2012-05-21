@@ -14,24 +14,28 @@ module ModalType where
 
 import Control.Monad.Writer.Strict (Writer, tell, execWriter)
 import Control.Monad.Error
+import Data.Foldable
 import Data.Monoid
 import Data.Functor
 import Data.Map as M
 import Data.Set as S
+import Debug.Trace
 
 type TpVar = String
 type TmVar = String
+type Loc = String
+type World = S.Set String
 
 data Tp = Tp :-> Tp
-        | Global Tp
+        | Tp :@ World
         | Unit
         | TpVar TpVar 
         deriving (Eq, Show, Read)
                  
 data Tm = Lam Tp TmVar Tm
         | App Tm Tm
-        | LamBox Tp TmVar Tm
-        | Box Tm
+        | LamAt World Tp TmVar Tm
+        | BoxAt World Tm
         | TmVar TmVar
         | Const
         deriving (Eq, Show, Read)
@@ -39,15 +43,18 @@ data Tm = Lam Tp TmVar Tm
 typeCheck :: Tm -> Maybe Tp
 typeCheck = generate mempty mempty
 
-generate :: M.Map TmVar Tp -> M.Map TmVar Tp -> Tm -> Maybe Tp
+generate :: M.Map TmVar Tp -> M.Map Loc (M.Map TmVar Tp) -> Tm -> Maybe Tp
 generate mpLocal mpGlobal l = case l of 
   Lam a tv e -> do
-    b <- generate (M.insert tv a mpLocal) (M.delete tv mpGlobal) e
+    b <- generate (M.insert tv a mpLocal) (fmap (M.delete tv) mpGlobal) e
     return $ a :-> b
-  LamBox a tv e -> do
-    b <- generate (M.insert tv a mpLocal) (M.insert tv a mpGlobal) e
-    return $ (Global a) :-> b
-  Box e -> Global <$> generate mpGlobal mpGlobal e
+  LamAt world a tv e -> do
+    let addLoc loc mpg = M.alter (Just . maybe (M.singleton tv a) (M.insert tv a)) loc mpg
+        mpGlobal' = foldMap addLoc world mpGlobal
+    b <- generate (M.insert tv a mpLocal) mpGlobal' e
+    return $ a:@world :-> b
+  BoxAt world e -> (:@world) <$> generate (trace (show mpGlobal) local) mpGlobal e 
+    where local = foldMap (maybe mempty id . (`M.lookup` mpGlobal)) world
   TmVar tv -> M.lookup tv mpLocal 
   Const -> return Unit
   App e1 e2 -> do

@@ -14,7 +14,7 @@ module ModalType where
 
 import Control.Monad.Writer.Strict (Writer, tell, execWriter)
 import Control.Monad.Error
-import Data.Foldable
+import Data.Foldable hiding (foldr)
 import Data.Monoid
 import Data.Functor
 import Data.Map as M
@@ -54,7 +54,9 @@ generate mpLocal mpGlobal l = case l of
     b <- generate (M.insert tv a mpLocal) mpGlobal' e
     return $ a:@world :-> b
   BoxAt world e -> (:@world) <$> generate (trace (show mpGlobal) local) mpGlobal e 
-    where local = foldMap (maybe mempty id . (`M.lookup` mpGlobal)) world
+    where local = foldr (M.intersection . get) (get a) (a:l)
+          get = maybe mempty id . (`M.lookup` mpGlobal)
+          (a:l) = (S.toList world)
   TmVar tv -> M.lookup tv mpLocal 
   Const -> return Unit
   App e1 e2 -> do

@@ -30,6 +30,7 @@ data Tp = Tp :-> Tp
         | Tp :@ World
         | Unit
         | TpVar TpVar 
+        | Forall TpVar Tp
         deriving (Eq, Show, Read)
                  
 data Tm = Lam Tp TmVar Tm
@@ -38,10 +39,23 @@ data Tm = Lam Tp TmVar Tm
         | BoxAt World Tm
         | TmVar TmVar
         | Const
+          
+        | TyLam TpVar Tm          
+        | TyApp Tm Tp          
         deriving (Eq, Show, Read)
 
 typeCheck :: Tm -> Maybe Tp
 typeCheck = generate mempty mempty
+
+substitute :: TpVar -> Tp -> Tp -> Tp
+substitute tO tN t = case t of
+  Forall tO' e | tO' == tO -> t
+  Forall tO' e  -> Forall tO' $ substitute tO tN e
+  TpVar tO' | tO' == tO -> tN
+  TpVar tO' -> TpVar tO'
+  Unit -> Unit
+  t1 :-> t2 -> substitute tO tN t1 :-> substitute tO tN t2
+  t1 :@ w -> substitute tO tN t1 :@ w
 
 generate :: M.Map TmVar Tp -> M.Map Loc (M.Map TmVar Tp) -> Tm -> Maybe Tp
 generate mpLocal mpGlobal l = case l of 
@@ -64,3 +78,14 @@ generate mpLocal mpGlobal l = case l of
     (a :-> b) <- gen e1 
     a' <- gen e2 
     if a == a' then Just b else Nothing
+    
+  TyLam ty e -> do
+    b <- generate mpLocal mpGlobal e
+    return $ Forall ty b
+  
+  TyApp e ty -> do
+    Forall tv b <- generate mpLocal mpGlobal e
+    -- ASSUME NO ETA: THIS WILL BREAK!
+    return $ substitute tv ty b
+    
+    

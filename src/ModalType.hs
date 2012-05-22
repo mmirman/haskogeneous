@@ -107,3 +107,5 @@ generate mpLocal mpGlobal l = case l of
     Forall tv b <- generate mpLocal mpGlobal e
     ty' <- regen ty
     return $ substitute tv ty' b
+
+

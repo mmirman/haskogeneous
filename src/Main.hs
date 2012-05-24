@@ -47,3 +47,4 @@ msg = makeHtml $
 
       $(script [| (\x y z -> z (x * y)) 3 4 JSBase.alert
                 |])
+      

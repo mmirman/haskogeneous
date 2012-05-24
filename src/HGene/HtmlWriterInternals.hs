@@ -6,7 +6,8 @@
  FlexibleContexts,
  EmptyDataDecls,
  MultiParamTypeClasses,
- FunctionalDependencies
+ FunctionalDependencies,
+ GADTs
  #-}
 
 ---------------------------------------------------------------------------
@@ -29,7 +30,6 @@ import Control.Monad.Writer.Strict (WriterT, tell, execWriterT)
 import Control.Monad.Writer.Class (MonadWriter(..))
 import HGene.JSCompiler.HaskellToJavaScript
 
-
 void a = a >> return ()
 
 -- --------------------------------------------------------------------------
@@ -48,9 +48,11 @@ makeHtml = execWriterT . getHtml . printThis
 data End
 data Par
 
-data Printable a b => Param a b = Param [HtmlAttr] a
+data Param a b where 
+  Param :: Printable a b => [HtmlAttr] -> a -> Param a b
 
-data Printable a b =>  Elem a b = Elem String a
+data Elem a b where 
+  Elem :: Printable a b => String -> a -> Elem a b
 
 data HtmlAttr = Attr String String
 

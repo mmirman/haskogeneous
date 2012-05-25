@@ -1,5 +1,5 @@
 Name:                XmlHtmlWriter
-Version:             0.0.0.0
+Version:             0.0.0.1
 Description:         A way to write XML and HTML with more efficient syntax.
 Synopsis:	     A library for writing XML and HTML
 
@@ -29,8 +29,8 @@ Library
                        mtl >= 2.0 && < 3.0, 
                        transformers >= 0.2 && <= 1.0
                        
-  Exposed-modules:    Language.XmlWriter, 
-                      Language.HtmlTags
+  Exposed-modules:    Language.XmlHtml.XmlWriter, 
+                      Language.XmlHtml.HtmlTags
   
   Extensions:  FlexibleInstances, 
                NoMonomorphismRestriction, 

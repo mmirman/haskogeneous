@@ -14,10 +14,9 @@
 -- Just a test class for the main library.
 module Main where
 
-import HGene.JSCompiler.HaskellToJavaScript
 import Data.Functor
-import HGene.JSCompiler.JSBase as JSBase
-import HGene.HtmlWriter
+import Language.XmlHtml.HtmlTags
+import Language.XmlHtml.XmlWriter
 import Network
 import Control.Concurrent
 import System.IO
@@ -40,7 +39,7 @@ main = withSocketsDo $ do
 
 page content = "HTTP/1.0 200 OK\r\nContent-Length: "++show (length content)++"\r\n\r\n"++content++"\r\n"
 
-msg = makeHtml $                           
+msg = makeXml $                           
   html $ do
     
     liftIO $ putStrLn "hi - why is this printing so many times?"
@@ -49,6 +48,3 @@ msg = makeHtml $
       h1 "AHA better syntax bitches!"
       p $ name "dig" $ "HEHE and paragraphs!"
       anchor $ name "dog" $ href "http://www.hulu.com/" $ "And links"
-      $(script [| (\x y z -> z (x * y)) 3 4 JSBase.alert
-                |])
-      

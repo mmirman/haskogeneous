@@ -1,0 +1,5 @@
+h1. An embeded language for XML and HTML
+
+XML syntax is very redundant and unnecessarily verbose. This is very annoying if the content of the website is not mostly textual.  Haskell syntax is often better in these cases. If your website is in fact mostly textual, this isn't for you. 
+
+This package defines a (not necessarily efficient) structure for type safe an syntactically beautiful xml and html.  Take a look at the trivial example in Main.hs.

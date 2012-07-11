@@ -2,7 +2,7 @@
 module ModalHaskellTest where
 import ModalHaskell
 
-
+-- hello world
 $(build [d|
   
   rpc a = return a       

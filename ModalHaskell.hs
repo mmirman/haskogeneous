@@ -25,7 +25,6 @@ newtype Client host a = LiftIO (IO a)
 class Host a where  
   getLocation :: a -> String
 
-
 instance Host String where
   
   
@@ -34,12 +33,12 @@ toServer :: forall a b host . (Host host, Data a, Data b) => a -> Box (a -> IO b
 toServer a (Box f) = LiftIO (f a)
   where hostName = getLocation (undefined :: host)
 
-
 build :: Q [Dec] -> Q [Dec]
 build ml = do
-  d <- ml
-  runReaderT (mapM check d) (0,mempty)
-
+  decs <- ml
+  localCheck decs
+  return decs
+  
 type BoxLevel = Integer
 type LocalContext = M.Map Name BoxLevel
 type Context = (BoxLevel, LocalContext)
@@ -51,26 +50,30 @@ getBoxLevel = fst <$> ask
 getCtxt :: QCheck LocalContext
 getCtxt = snd <$> ask
 
+success = return ()
+
+localCheck :: [Dec] -> Q ()
+localCheck decs = runReaderT (mapM_ check decs) (0,mempty)
+
 class Check a where
-  check :: a -> QCheck a
+  check :: a -> QCheck ()
 
 instance Check Dec where
   check a = case a of
     FunD nm _ -> undefined
     ValD pat bd decs -> undefined
-    a -> return a
+    a -> success
 
 instance Check Exp where
   check a =
     case a of
-      VarE nm -> VarE <$> check nm
+      VarE nm -> check nm
       AppE (ConE (nameBase -> "Box")) _ -> undefined -- Watch out below!
       AppE a b -> do
-        a' <- check a
-        b' <- check b
-        return $ AppE a' b'
-      ConE nm -> return $ ConE nm
-      ParensE e -> ParensE <$> check e
+        check a
+        check b        
+      ConE nm -> success
+      ParensE e -> check e
 
 instance Check Name where
   check nm = do
@@ -84,4 +87,4 @@ instance Check Name where
           ++ " in "++ loc_filename loc
           ++ "\n Don't you wish this had better error reporting?" 
           ++ "\nWhy doesn't template haskell include statistics with the expressions?"
-      _ -> return nm
+      _ -> success

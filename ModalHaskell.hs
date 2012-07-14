@@ -4,44 +4,71 @@
  GeneralizedNewtypeDeriving,
  ScopedTypeVariables,
  ViewPatterns,
- DataKinds,
- KindSignatures
+ StandaloneDeriving,
+ GADTs
  #-}
-module ModalHaskell (Box(..), build, toServer, Data(..), Client(..)) where
+module ModalHaskell ( Box(..)
+                    , build
+                    , Data(..)
+                    , Client(..)
+                    ) where
 
 import Language.Haskell.TH
 import Data.Monoid
 import Data.Functor 
 import Control.Monad.Reader
+import Control.Monad.IO.Class
+import Data.IORef
 import qualified Data.Map as M
 
-newtype Box a = Box { unbox :: a }
-data Dia host a = Here host a
+newtype WIO world a = LiftIO (IO a)
+deriving instance Monad (WIO world)
+deriving instance Functor (WIO world)
+deriving instance MonadIO (WIO world)
 
-here :: Host host => a -> Dia host a
-here a = Here getValue a
+newtype Box a = Box { unbox :: a } -- mobile
+data Ref a where 
+  Here :: Host host => host ->  (IORef a) -> Ref a -- Diagonal 
 
+-- | Data is anything that is serializable - that you can both show and read
 class Data a
-
 instance (Show a, Read a) => Data a
 
-newtype Client a = LiftIO (IO a)
-                 deriving (Monad)
 
-class Host a where  
+data Client = Client deriving Read
+instance Show Client where show _ = "Client"
+
+
+class Host a where
   getLocation :: a -> String
   getValue :: a
-
-data Loc = Loc deriving (Show, Read)
 
 instance (Show a, Read a) => Host a where
   getLocation _ = show (undefined :: a)
   getValue = read $ show (undefined :: a)
 
--- A temporary definition of the monad operations.  This should change significantly.
-toServer :: forall a b host . (Host host, Data a, Data b) => a -> Box (Dia host (a -> IO b)) -> Client b
-toServer a (Box (Here host f)) = LiftIO (f a)
-  where hostName = getLocation (undefined :: host)
+-- newRef =~= "here"
+newRef :: forall a host . Host host => a -> WIO host (Ref a)
+newRef a = do
+  r <- liftIO $ newIORef a
+  return $ Here (getValue :: host) r
+
+-- letRemote =~= "letd"
+-- not actually how this should work.  a remote request should be made.
+letRemote :: Host host' => Ref a -> (a -> WIO host' b) -> WIO host' b
+letRemote (Here host ref) = (>>=) $ liftIO $ readIORef ref
+
+-- getRemoteRef =~= "get"
+-- not actually how this should work.  a remote request should be made
+getRemoteRef :: (Host hostA, Host hostB) => WIO hostA (Ref a) -> WIO hostB (Ref a)
+getRemoteRef (LiftIO m) = (LiftIO m)
+
+-- fetchMobile =~= "fetch"  
+fetchMobile :: (Host hostA, Host hostB) => WIO hostA (Box a) -> WIO hostB (Box a)
+fetchMobile (LiftIO m) = (LiftIO m)  
+
+
+
 
 build :: Q [Dec] -> Q [Dec]
 build ml = do

@@ -1,74 +1,83 @@
 {-# LANGUAGE 
- FlexibleInstances,
- UndecidableInstances,
  GeneralizedNewtypeDeriving,
  ScopedTypeVariables,
+ FlexibleInstances,
  ViewPatterns,
  StandaloneDeriving,
- GADTs
+ GADTs,
+ RankNTypes
  #-}
-module ModalHaskell ( Box(..)
+module ModalHaskell ( Box(Box)
+                    , unbox
+                    , WIO(..)
                     , build
-                    , Data(..)
+                    , world
                     , Client(..)
+                    , Server(..)
+                    , Ref()
+                    , Host(..)
+                    , newRef
+                    , letRemote
+                    , getRemoteRef
+                    , fetchMobile
                     ) where
 
 import Language.Haskell.TH
 import Data.Monoid
 import Data.Functor 
 import Control.Monad.Reader
-import Control.Monad.IO.Class
-import Data.IORef
+import Foreign
+import Foreign.Marshal.Utils
 import qualified Data.Map as M
 
 newtype WIO world a = LiftIO (IO a)
 deriving instance Monad (WIO world)
 deriving instance Functor (WIO world)
 deriving instance MonadIO (WIO world)
+newtype Box a = Box { unbox :: forall w . Host w => WIO w a } -- mobile
 
-newtype Box a = Box { unbox :: a } -- mobile
-data Ref a where 
-  Here :: Host host => host ->  (IORef a) -> Ref a -- Diagonal 
+world :: forall w . Host w => WIO w w
+world = return (getValue :: w)
 
--- | Data is anything that is serializable - that you can both show and read
-class Data a
-instance (Show a, Read a) => Data a
+data Ref a where
+  -- this needs to be a StablePtr, although in the future it could be made
+  -- more efficient by using castStablePtrToPtr
+  Here :: Host host => host -> IntPtr {- =~= Ptr (StablePtr a) -} -> Ref a -- Diagonal 
 
+class (Read a, Show a) => Host a where
+  getLocation :: a -> String
+  getLocation _ = show (undefined :: a)
+  getValue :: a
+  getValue = read $ show (undefined :: a)
 
 data Client = Client deriving Read
 instance Show Client where show _ = "Client"
+instance Host Client
 
-
-class Host a where
-  getLocation :: a -> String
-  getValue :: a
-
-instance (Show a, Read a) => Host a where
-  getLocation _ = show (undefined :: a)
-  getValue = read $ show (undefined :: a)
+data Server = Server deriving (Read)
+instance Show Server where show _ = "Server"
+instance Host Server
 
 -- newRef =~= "here"
-newRef :: forall a host . Host host => a -> WIO host (Ref a)
+newRef :: forall a host . (Host host) => a -> WIO host (Ref a)
 newRef a = do
-  r <- liftIO $ newIORef a
+  r <- liftIO $ ptrToIntPtr <$> (new =<< newStablePtr a)
   return $ Here (getValue :: host) r
 
 -- letRemote =~= "letd"
 -- not actually how this should work.  a remote request should be made.
-letRemote :: Host host' => Ref a -> (a -> WIO host' b) -> WIO host' b
-letRemote (Here host ref) = (>>=) $ liftIO $ readIORef ref
+letRemote :: forall a b host'. Host host' => Ref a 
+         -> (forall host . Host host => host -> a -> WIO host' b) -> WIO host' b
+letRemote (Here host ref) f = f host =<< (liftIO $ deRefStablePtr =<< peek (intPtrToPtr ref))
 
 -- getRemoteRef =~= "get"
 -- not actually how this should work.  a remote request should be made
-getRemoteRef :: (Host hostA, Host hostB) => WIO hostA (Ref a) -> WIO hostB (Ref a)
-getRemoteRef (LiftIO m) = (LiftIO m)
+getRemoteRef :: (Host hostA, Host hostB) => hostA -> WIO hostA (Ref a) -> WIO hostB (Ref a)
+getRemoteRef _ (LiftIO m) = (LiftIO m)
 
 -- fetchMobile =~= "fetch"  
-fetchMobile :: (Host hostA, Host hostB) => WIO hostA (Box a) -> WIO hostB (Box a)
-fetchMobile (LiftIO m) = (LiftIO m)  
-
-
-
+fetchMobile :: (Host hostA, Host hostB) => hostA -> WIO hostA (Box a) -> WIO hostB (Box a)
+fetchMobile _ (LiftIO m) = (LiftIO m)  
 
 build :: Q [Dec] -> Q [Dec]
 build ml = do
@@ -77,11 +86,13 @@ build ml = do
   return decs
   
 type BoxLevel = Integer
-type LocalContext = M.Map Name BoxLevel
-type Context = (BoxLevel, LocalContext)
+type Variable = Name
+type World = String
+type LocalContext = M.Map Variable World
+type Context = (World, LocalContext)
 type QCheck = ReaderT Context Q
 
-getBoxLevel :: QCheck BoxLevel
+getBoxLevel :: QCheck World
 getBoxLevel = fst <$> ask
 
 getCtxt :: QCheck LocalContext
@@ -90,7 +101,10 @@ getCtxt = snd <$> ask
 success = return ()
 
 localCheck :: [Dec] -> Q ()
-localCheck decs = runReaderT (mapM_ check decs) (0,mempty)
+localCheck decs = mapM_ checkDec decs
+
+checkDec dec = do
+  runReaderT (check dec) ("",mempty)
 
 class Check a where
   check :: a -> QCheck ()
@@ -117,7 +131,7 @@ instance Check Name where
     ctxt <- getCtxt
     boxlevel <- getBoxLevel
     case M.lookup nm ctxt of
-      Just i | i <= boxlevel -> do
+      Just i | i /= boxlevel -> do
         loc <- lift location
         error $ "nm: " ++ show nm 
           ++ " @ " ++ show (loc_start loc)

@@ -1,23 +1,22 @@
 {-# LANGUAGE TemplateHaskell, ScopedTypeVariables #-}
 module ModalHaskellTest where
 import ModalHaskell
+import Data.Functor
 
-ax1 :: forall a b w . Host w => (Ref a -> Box b) -> Box (a -> WIO w b)
+
+ax1 :: forall a b w . (Host w) => (Ref a -> Box b) -> Box (a -> WIO w b)
 ax1 f = Box $ do
   w' <- world
   return $ \y -> do
     w <- world
-    r <- fetchMobile w $ do
-      a <- getRemoteRef w' $ newRef y
-      return $ f a
-    unbox r
+    unbox =<< (fetchMobile w $ f <$> (getRemoteRef w' $ newRef y))
 
-ax2 :: Host host => Ref (Box a) -> WIO host (Box a)
+
+ax2 :: (Host host) => Ref (Box a) -> WIO host (Box a)
 ax2 r = letRemote r $ \w y -> fetchMobile w (return y)
 
 ax3 :: Ref a -> Box (Ref a)
 ax3 ref = Box $ return ref
-
 
 {-
 

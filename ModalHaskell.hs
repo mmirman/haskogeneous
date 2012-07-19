@@ -5,7 +5,8 @@
  ViewPatterns,
  StandaloneDeriving,
  GADTs,
- RankNTypes
+ RankNTypes,
+ UndecidableInstances
  #-}
 module ModalHaskell ( Box(Box)
                     , unbox
@@ -20,20 +21,31 @@ module ModalHaskell ( Box(Box)
                     , letRemote
                     , getRemoteRef
                     , fetchMobile
+                    , Storable()
                     ) where
 
 import Language.Haskell.TH
 import Data.Monoid
 import Data.Functor 
+import Control.Monad.Error
 import Control.Monad.Reader
-import Foreign
+import Foreign hiding (unsafePerformIO)
 import Foreign.Marshal.Utils
+import Control.Concurrent
+import System.Random
+import Network
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Map as M
 
-newtype WIO world a = LiftIO (IO a)
+-------------------------------------------------------------------------------------------------
+-- The library of functions
+-------------------------------------------------------------------------------------------------
+
+newtype WIO world a = LiftIO { unliftWIO :: (IO a) }
 deriving instance Monad (WIO world)
 deriving instance Functor (WIO world)
 deriving instance MonadIO (WIO world)
+
 newtype Box a = Box { unbox :: forall w . Host w => WIO w a } -- mobile
 
 world :: forall w . Host w => WIO w w
@@ -49,14 +61,14 @@ class (Read a, Show a) => Host a where
   getLocation _ = show (undefined :: a)
   getValue :: a
   getValue = read $ show (undefined :: a)
-
+  
+instance (Read a, Show a) => Host a  
+  
 data Client = Client deriving Read
 instance Show Client where show _ = "Client"
-instance Host Client
 
 data Server = Server deriving (Read)
 instance Show Server where show _ = "Server"
-instance Host Server
 
 -- newRef =~= "here"
 newRef :: forall a host . (Host host) => a -> WIO host (Ref a)
@@ -64,47 +76,118 @@ newRef a = do
   r <- liftIO $ ptrToIntPtr <$> (new =<< newStablePtr a)
   return $ Here (getValue :: host) r
 
+
+
 -- letRemote =~= "letd"
 -- not actually how this should work.  a remote request should be made.
 letRemote :: forall a b host'. Host host' => Ref a 
-         -> (forall host . Host host => host -> a -> WIO host' b) -> WIO host' b
+             -> (forall host . Host host => host -> a -> WIO host' b) -> WIO host' b
 letRemote (Here host ref) f = f host =<< (liftIO $ deRefStablePtr =<< peek (intPtrToPtr ref))
 
 -- getRemoteRef =~= "get"
 -- not actually how this should work.  a remote request should be made
 getRemoteRef :: (Host hostA, Host hostB) => hostA -> WIO hostA (Ref a) -> WIO hostB (Ref a)
-getRemoteRef _ (LiftIO m) = (LiftIO m)
+getRemoteRef w (LiftIO m) = LiftIO m
+  -- send m to w, compute m, return the value
 
--- fetchMobile =~= "fetch"  
+-- fetchMobile =~= "fetch"
 fetchMobile :: (Host hostA, Host hostB) => hostA -> WIO hostA (Box a) -> WIO hostB (Box a)
-fetchMobile _ (LiftIO m) = (LiftIO m)  
+fetchMobile _ (LiftIO m) = (LiftIO m)
 
+-------------------------------------------------------------------------------------------------
+-- 
+-------------------------------------------------------------------------------------------------
+
+data CRef a = CRef String Integer deriving (Show, Read)
+
+class CloudFree a where
+  getRefValue :: String -> CRef a -> IO a
+  makeRefFrom :: String -> a -> IO (CRef a)
+    
+instance (Show a, Read a) => CloudFree a where
+  makeRefFrom w v = do
+    let v' = show v
+    ptr <- randomIO 
+    liftIO $ forkIO $ do
+      s <- listenOn $ PortNumber $ fromInteger ptr
+      forever $ forkIO $ do
+        (handle, host, port) <- accept s
+        "" <- recvFrom host (PortNumber port)
+        sendTo host (PortNumber port) v'
+    return $ CRef w ptr
+  getRefValue _ (CRef w p) = do
+    let p' = PortNumber $ fromInteger p
+    sendTo w p' ""
+    read <$> recvFrom w p'
+
+instance (CloudFree a, CloudFree b) => CloudFree (a -> b) where
+  makeRefFrom w f = do
+    ptr <- randomIO
+    liftIO $ forkIO $ do
+      let ptr' =  PortNumber $ fromInteger ptr
+      s <- listenOn ptr'
+      forever $ forkIO $ do
+        (handle, host, port) <- accept s
+        aRef  <- read <$> recvFrom host (PortNumber port)
+        bVal <- f <$> getRefValue w aRef
+        bRef <- makeRefFrom w bVal
+        sendTo host (PortNumber port) (show bRef)
+    return $ CRef w ptr
+
+  {-# NOINLINE getRefValue #-}
+  getRefValue w (CRef w' p) = do
+    let p' = PortNumber $ fromInteger p
+    return $ \a -> unsafePerformIO $ do
+      aRef <- makeRefFrom w a
+      sendTo w' p' (show aRef)
+      bRef <- read <$> recvFrom w' p'
+      getRefValue w bRef
+
+
+
+-------------------------------------------------------------------------------------------------
+-- The pipeline
+-------------------------------------------------------------------------------------------------
 build :: Q [Dec] -> Q [Dec]
 build ml = do
   decs <- ml
-  localCheck decs
-  return decs
-  
-type BoxLevel = Integer
-type Variable = Name
-type World = String
-type LocalContext = M.Map Variable World
-type Context = (World, LocalContext)
-type QCheck = ReaderT Context Q
+  r <- localCheck decs
+  case r of 
+    Left err -> error err
+    Right () -> compile decs
 
-getBoxLevel :: QCheck World
-getBoxLevel = fst <$> ask
+-------------------------------------------------------------------------------------------------
+-- The modal checker
+-------------------------------------------------------------------------------------------------
+type World = String
+type LocalContext = M.Map Name World
+type Context = (World, LocalContext)
+
+type QCheck = ReaderT Context (ErrorT String Q)
+
+getWorld :: QCheck World
+getWorld = fst <$> ask
 
 getCtxt :: QCheck LocalContext
 getCtxt = snd <$> ask
 
 success = return ()
 
-localCheck :: [Dec] -> Q ()
-localCheck decs = mapM_ checkDec decs
+localCheck :: [Dec] -> Q (Either String ())
+localCheck decs = runErrorT (mapM_ checkDec decs)
 
 checkDec dec = do
   runReaderT (check dec) ("",mempty)
+
+liftQ = lift . lift
+throw = lift . throwError
+
+withWorld :: World -> QCheck a -> QCheck a
+withWorld w = withReaderT (\(_,c) -> (w,c))
+
+addVar :: Name -> World -> QCheck a -> QCheck a
+addVar n w = withReaderT (\(w,c) -> (w,M.insert n w c))
+
 
 class Check a where
   check :: a -> QCheck ()
@@ -129,13 +212,19 @@ instance Check Exp where
 instance Check Name where
   check nm = do
     ctxt <- getCtxt
-    boxlevel <- getBoxLevel
+    world <- getWorld
     case M.lookup nm ctxt of
-      Just i | i /= boxlevel -> do
-        loc <- lift location
-        error $ "nm: " ++ show nm 
+      Just i | i /= world -> do
+        loc <- liftQ location
+        throw $ "nm: " ++ show nm 
           ++ " @ " ++ show (loc_start loc)
           ++ " in "++ loc_filename loc
           ++ "\n Don't you wish this had better error reporting?" 
           ++ "\nWhy doesn't template haskell include statistics with the expressions?"
       _ -> success
+
+-------------------------------------------------------------------------------------------------
+-- The compiler
+-------------------------------------------------------------------------------------------------
+compile :: [Dec] -> Q [Dec]
+compile = return

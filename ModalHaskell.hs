@@ -62,21 +62,19 @@ class (Read a, Show a) => Host a where
   getValue :: a
   getValue = read $ show (undefined :: a)
   
-instance (Read a, Show a) => Host a  
-  
 data Client = Client deriving Read
 instance Show Client where show _ = "Client"
+instance Host Client
 
 data Server = Server deriving (Read)
 instance Show Server where show _ = "Server"
+instance Host Server
 
 -- newRef =~= "here"
 newRef :: forall a host . (Host host) => a -> WIO host (Ref a)
 newRef a = do
   r <- liftIO $ ptrToIntPtr <$> (new =<< newStablePtr a)
   return $ Here (getValue :: host) r
-
-
 
 -- letRemote =~= "letd"
 -- not actually how this should work.  a remote request should be made.
@@ -93,57 +91,6 @@ getRemoteRef w (LiftIO m) = LiftIO m
 -- fetchMobile =~= "fetch"
 fetchMobile :: (Host hostA, Host hostB) => hostA -> WIO hostA (Box a) -> WIO hostB (Box a)
 fetchMobile _ (LiftIO m) = (LiftIO m)
-
--------------------------------------------------------------------------------------------------
--- 
--------------------------------------------------------------------------------------------------
-
-data CRef a = CRef String Integer deriving (Show, Read)
-
-class CloudFree a where
-  getRefValue :: String -> CRef a -> IO a
-  makeRefFrom :: String -> a -> IO (CRef a)
-    
-instance (Show a, Read a) => CloudFree a where
-  makeRefFrom w v = do
-    let v' = show v
-    ptr <- randomIO 
-    liftIO $ forkIO $ do
-      s <- listenOn $ PortNumber $ fromInteger ptr
-      forever $ forkIO $ do
-        (handle, host, port) <- accept s
-        "" <- recvFrom host (PortNumber port)
-        sendTo host (PortNumber port) v'
-    return $ CRef w ptr
-  getRefValue _ (CRef w p) = do
-    let p' = PortNumber $ fromInteger p
-    sendTo w p' ""
-    read <$> recvFrom w p'
-
-instance (CloudFree a, CloudFree b) => CloudFree (a -> b) where
-  makeRefFrom w f = do
-    ptr <- randomIO
-    liftIO $ forkIO $ do
-      let ptr' =  PortNumber $ fromInteger ptr
-      s <- listenOn ptr'
-      forever $ forkIO $ do
-        (handle, host, port) <- accept s
-        aRef  <- read <$> recvFrom host (PortNumber port)
-        bVal <- f <$> getRefValue w aRef
-        bRef <- makeRefFrom w bVal
-        sendTo host (PortNumber port) (show bRef)
-    return $ CRef w ptr
-
-  {-# NOINLINE getRefValue #-}
-  getRefValue w (CRef w' p) = do
-    let p' = PortNumber $ fromInteger p
-    return $ \a -> unsafePerformIO $ do
-      aRef <- makeRefFrom w a
-      sendTo w' p' (show aRef)
-      bRef <- read <$> recvFrom w' p'
-      getRefValue w bRef
-
-
 
 -------------------------------------------------------------------------------------------------
 -- The pipeline

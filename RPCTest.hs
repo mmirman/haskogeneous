@@ -8,12 +8,14 @@ import RPC
 data Server = Server
 instance Host Server where
   getLocation _ = "Server"
+  getPort _ = 9000
   getValue = Server
 
 data Client = Client
 instance Show Client
 instance Host Client where
   getLocation _ = "Client"
+  getPort _ = 9000
   getValue = Client
 
 data Person = IamAPerson String deriving (Read, Show)
@@ -38,7 +40,8 @@ clientPage = do
 
 data LocalHost = LocalHost 
 instance Host LocalHost where
-  getLocation LocalHost = "localhost"
+  getLocation _ = "localhost"
+  getPort _ = 8000
   getValue = LocalHost
   
 justServer = do
@@ -55,5 +58,6 @@ justServer = do
   add <- fetchRefValue addRef
   putText $ "add value: " ++ (show $ add v v)
 
-main = unliftWIO justServer
+
+main = runServer justServer
   

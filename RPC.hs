@@ -3,20 +3,21 @@
  ScopedTypeVariables,
  FlexibleInstances,
  StandaloneDeriving,
- RankNTypes,
  UndecidableInstances,
  TypeFamilies, 
- MultiParamTypeClasses
+ MultiParamTypeClasses,
+ IncoherentInstances
  #-}
-module RPCHaskell ( WIO(..)
-                  , world
-                  , remoteCall
-                  , Host()
-                  , Sendable()
-                  , Ref()
-                  , newRef
-                  , fetchRefValue
-                  ) where
+module RPC ( WIO(..)
+           , world
+           , remoteCall
+           , Host(..)
+           , Sendable()
+           , Ref()
+           , newRef
+           , fetchRefValue
+           , liftIO
+           ) where
 
 import Language.Haskell.TH
 import Data.Monoid
@@ -27,15 +28,13 @@ import Control.Concurrent
 import System.Random
 import Network
 import Unsafe.Coerce
+import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Map as M
 
-class (Read a, Show a) => Host a where
+class Host a where
   getLocation :: a -> String
-  getLocation _ = show (undefined :: a)
   getValue :: a
-  getValue = read $ show (undefined :: a)
-
   
 newtype WIO w a = LiftIO { unliftWIO :: IO a }
 deriving instance Monad (WIO w)
@@ -50,6 +49,9 @@ data Ref a = Ref String Integer
            | Val String
            deriving (Show, Read)
 
+data Zero
+data Succ a b
+
 class Sendable a where
   getRefValue :: String -> Ref a -> IO a
   makeRefFrom :: String -> a -> IO (Ref a)
@@ -57,19 +59,20 @@ class Sendable a where
 instance (Read a, Show a) => Sendable a where
   makeRefFrom _ v = return $ Val (show v)
   getRefValue _ (Val s) = return $ read s
-    
+
 instance (Sendable a, Sendable b) => Sendable (a -> b) where
   makeRefFrom w f = do
     ptr <- randomIO
     liftIO $ forkIO $ do
-      let ptr' =  PortNumber $ fromInteger ptr
+      let ptr' = PortNumber $ fromInteger ptr
       s <- listenOn ptr'
-      forever $ forkIO $ do
+      forever $ forkOS $ do
         (handle, host, port) <- accept s
-        aRef  <- read <$> recvFrom host (PortNumber port)
+        aRef <- recv handle
         bVal <- f <$> getRefValue w aRef
         bRef <- makeRefFrom w bVal
-        sendTo host (PortNumber port) (show bRef)
+        send handle bRef
+        hClose handle
     return $ Ref w ptr
 
   {-# NOINLINE getRefValue #-}
@@ -77,11 +80,20 @@ instance (Sendable a, Sendable b) => Sendable (a -> b) where
     let p' = PortNumber $ fromInteger p
     return $ \a -> unsafePerformIO $ do
       aRef <- makeRefFrom w a
-      sendTo w' p' (show aRef)
-      bRef <- read <$> recvFrom w' p'
+      handle <- connectTo w' p'
+      send handle aRef
+      bRef <- recv handle
+      hClose handle
       getRefValue w bRef
 
+send handle val = do
+  hPutStrLn handle (show val) 
+  hFlush handle
 
+recv handle = do 
+  hWaitForInput handle $ -1 
+  read <$> hGetLine handle
+  
 fetchRefValue :: (Sendable a , Host w) => Ref a -> WIO w a
 fetchRefValue ref = do
   w <- getLocation <$> world

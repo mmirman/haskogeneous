@@ -46,29 +46,18 @@ deriving instance MonadIO (WIO w)
 world :: forall w . Host w => WIO w w
 world = return (getValue :: w)
 
-data Ref a = Ref String Integer deriving (Show, Read)
+data Ref a = Ref String Integer 
+           | Val String
+           deriving (Show, Read)
 
 class Sendable a where
   getRefValue :: String -> Ref a -> IO a
   makeRefFrom :: String -> a -> IO (Ref a)
     
 instance (Read a, Show a) => Sendable a where
-  makeRefFrom w v = do
-    let v' = show v
-    ptr <- randomIO 
-    liftIO $ forkIO $ do
-      s <- listenOn $ PortNumber $ fromInteger ptr
-      forever $ forkIO $ do
-        (handle, host, port) <- accept s
-        "" <- recvFrom host $ PortNumber port
-        sendTo host (PortNumber port) v'
-    return $ Ref w ptr
-  {-# NOINLINE getRefValue #-}
-  getRefValue _ (Ref w p) = do
-    let p' = PortNumber $ fromInteger p
-    sendTo w p' ""
-    read <$> recvFrom w p'
-
+  makeRefFrom _ v = return $ Val (show v)
+  getRefValue _ (Val s) = return $ read s
+    
 instance (Sendable a, Sendable b) => Sendable (a -> b) where
   makeRefFrom w f = do
     ptr <- randomIO

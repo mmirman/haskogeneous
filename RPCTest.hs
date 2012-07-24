@@ -4,19 +4,10 @@
  #-}
 module Main where
 import RPC
+import MobileTransform
 
-data Server = Server
-instance Host Server where
-  getLocation _ = "Server"
-  getPort _ = 9000
-  getValue = Server
-
-data Client = Client
-instance Show Client
-instance Host Client where
-  getLocation _ = "Client"
-  getPort _ = 9000
-  getValue = Client
+$(makeHost "Server" "localhost" 9000)
+$(makeHost "Client" "localhost" 9000)
 
 data Person = IamAPerson String deriving (Read, Show)
 
@@ -38,11 +29,7 @@ clientPage = do
   person <- remoteCall databaseService nm pass
   putText $ show person
 
-data LocalHost = LocalHost 
-instance Host LocalHost where
-  getLocation _ = "localhost"
-  getPort _ = 8000
-  getValue = LocalHost
+$(makeHost "LocalHost" "localhost" 9000)
   
 justServer = do
   LocalHost <- world
@@ -58,6 +45,4 @@ justServer = do
   add <- fetchRefValue addRef
   putText $ "add value: " ++ (show $ add v v)
 
-
 main = runServer justServer
-  

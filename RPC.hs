@@ -1,8 +1,8 @@
 {-# LANGUAGE 
  GeneralizedNewtypeDeriving,
+ StandaloneDeriving,
  ScopedTypeVariables,
  FlexibleInstances,
- StandaloneDeriving,
  UndecidableInstances,
  TypeFamilies, 
  MultiParamTypeClasses,
@@ -21,18 +21,8 @@ module RPC ( WIO()
            ) where
 
 import MultiServer
-import Language.Haskell.TH
-import Data.Monoid
 import Data.Functor 
 import Control.Monad.IO.Class
-import Control.Monad (forever)
-import Control.Concurrent
-import System.Random
-import Network
-import Unsafe.Coerce
-import System.IO
-import System.IO.Unsafe (unsafePerformIO)
-import qualified Data.Map as M
 
 class Host a where
   getLocation :: a -> String
@@ -40,6 +30,7 @@ class Host a where
   getValue :: a
   
 newtype WIO w a = LiftAIO { unliftWIO :: AIO a }
+  
 deriving instance Monad (WIO w)
 deriving instance Functor (WIO w)
 deriving instance MonadIO (WIO w)

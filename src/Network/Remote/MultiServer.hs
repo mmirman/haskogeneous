@@ -1,22 +1,21 @@
 {-# LANGUAGE 
  GeneralizedNewtypeDeriving,
- TypeSynonymInstances,
  FlexibleInstances,
  MultiParamTypeClasses
  #-}
-module MultiServer where
+module Network.Remote.MultiServer where
 
-import Control.Monad.Reader
-import Control.Monad.Reader.Class
+import Control.Monad.Reader (MonadReader(..), runReaderT, ReaderT)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad (forever)
 import qualified Data.Map as M
-import Data.Monoid
-import Control.Concurrent
-import Control.Concurrent.MVar
-import System.IO
-import Network
-import Data.Functor 
+import Data.Monoid (mempty)
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (modifyMVar, newMVar, withMVar, MVar())
+import System.IO (Handle, hWaitForInput, hFlush, hGetLine, hClose, hPutStrLn)
+import Network (connectTo, accept, PortID(PortNumber), listenOn)
+import Data.Functor ((<$>))
 import System.IO.Unsafe (unsafePerformIO)
-
 
 data ServiceID = LocNumber Integer
                | LocName String
@@ -26,7 +25,9 @@ type Handlers = M.Map ServiceID (Handle -> AIO ())
 type State = MVar (Handlers, Integer)
 newtype AIO a = AIO (ReaderT State IO a)
               deriving (Monad, Functor, MonadIO)
-                       
+
+
+
 instance MonadReader State AIO where
   ask = AIO ask
   local f (AIO m) = AIO (local f m)
@@ -47,12 +48,16 @@ startServer port (AIO aio) = do
     forever $ do
       (handle, host, port) <- accept s
       service <- recv handle
-      f <- withMVar r $ \(map,_) -> return $ map M.! service
+      f <- withMVar r $ \(map,_) -> return $ safeFind map service
       forkIO $ case f handle of
         AIO m -> do
           runReaderT m r
           hClose handle
   runReaderT aio r
+  
+safeFind map val = case M.lookup val map of
+  Just r -> r
+  Nothing -> error $ "can't find "++ show val++" in server map: "++show (M.keys map)
 
 unsafePerformServer :: State -> AIO a -> a
 unsafePerformServer handlers (AIO aio) = unsafePerformIO $ runReaderT aio handlers

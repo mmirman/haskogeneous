@@ -1,4 +1,4 @@
-test : 
+test : clean
 	ghc RPCTest.hs -threaded -o test
 	rm -f *.hi *.o *~
 

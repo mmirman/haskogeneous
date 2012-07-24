@@ -3,46 +3,32 @@
  ScopedTypeVariables
  #-}
 module Main where
-import RPC
-import MobileTransform
 
-$(makeHost "Server" "localhost" 9000)
-$(makeHost "Client" "localhost" 9000)
-
-data Person = IamAPerson String deriving (Read, Show)
+import Network.Remote.RPC
 
 putText str = liftIO $ putStrLn str
 
-getText str = putText str >> liftIO getLine
-
-databaseService nm password = do
-  Server <- world
-  pass <- getText $ "password for " ++ nm ++"?"
-  return $ if pass == password
-           then Just $ IamAPerson nm
-           else Nothing
-
-clientPage = do
+$(makeHost "Client" "localhost" 9000)
+$(makeHost "Server" "localhost" 9001)
+  
+client = do
   Client <- world
-  nm <- getText "name?"
-  pass <- getText "password?"
-  person <- remoteCall databaseService nm pass
-  putText $ show person
+  
+  double <- $(rpcCall 'doubleServer) 3
+  putText $ "r(h3+h3) ? " ++ show double
+         
+  add <- $(rpcCall 'addServer) 4
+  putText $ "r(h4 +) h6 ? " ++ show (add 6)         
 
-$(makeHost "LocalHost" "localhost" 9000)
-  
-justServer = do
-  LocalHost <- world
-  r <- newRef (1337 :: Integer)
-  v <- fetchRefValue r
-  
-  incRef <- newRef ((+ 1) :: Integer -> Integer)
-  putText $ "value: " ++ show v
-  incr <- fetchRefValue incRef
-  putText $ "incr value: " ++ show (incr v)
-  
-  addRef <- newRef ((+) :: Integer -> Integer -> Integer)
-  add <- fetchRefValue addRef
-  putText $ "add value: " ++ (show $ add v v)
+doubleServer (t :: Integer) = do
+  Server <- world
+  return (t + t)
 
-main = runServer justServer
+addServer (t :: Integer) = do
+  Server <- world
+  return (t +)
+
+main = do
+  runServerBG $(makeServices [ 'addServer , 'doubleServer])
+  -- one of these has to not return, otherwise the program will exit
+  runServer client    

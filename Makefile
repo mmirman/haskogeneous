@@ -1,4 +1,5 @@
 test : 
+	cabal configure
 	cabal build
 	cp dist/build/test/test .
 

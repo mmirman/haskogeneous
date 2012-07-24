@@ -1,9 +1,10 @@
-test : clean
-	ghc RPCTest.hs -threaded -o test
-	rm -f *.hi *.o *~
+test : 
+	cabal build
+	cp dist/build/test/test .
 
 run : test
 	./test
 
 clean :
-	rm -f *.hi *.o *~ test
+	rm -f -R dist
+	rm test
